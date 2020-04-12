@@ -55,8 +55,8 @@ public class FileSync{
             System.out.println("OK: Destination file found!");
             Path remoteTempFile = Paths.get(remoteFilePath);
             Path tempFile = Paths.get(path);
-            BasicFileAttributes remoteAttr = Files.readAttributes(remoteTempFile,BasicFileAttributes.class);
-            BasicFileAttributes tempAttr = Files.readAttributes(tempFile,BasicFileAttributes.class);
+            BasicFileAttributes remoteAttr = attrFinder(remoteTempFile);
+            BasicFileAttributes tempAttr = attrFinder(tempFile);
 
           }else{
             System.out.println("Error: Destination file doesnt Exists");
@@ -74,5 +74,9 @@ public class FileSync{
     }
 
     return;
+  }
+
+  public static BasicFileAttributes attrFinder(Path p){
+    return Files.readAttributes(p,BasicFileAttributes.class);
   }
 }
