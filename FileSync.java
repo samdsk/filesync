@@ -5,6 +5,7 @@ import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.nio.file.attribute.FileTime;
 
 public class FileSync{
 
@@ -39,24 +40,26 @@ public class FileSync{
     //File[] destinationStruct = destination.listFiles();
 
     for(File f : sourceStruct){
-      String path = f.getAbsolutePath();
-      String subPath = path.substring(sPath.length(),path.length());
+      String localPathString = f.getAbsolutePath();
+      String subPath = localPathString.substring(sPath.length(),localPathString.length());
 
       System.out.println("Removed source: "+subPath);
 
-      String remoteFilePath = dPath+subPath;
-      System.out.println("Destination remote file: "+remoteFilePath);
+      String remoteFilePathString = dPath+subPath;
+      System.out.println("Destination remote file: "+remoteFilePathString);
 
       if(f.isFile()){
         try{
           System.out.println("OK: File found!");
-          File remoteFile = new File(remoteFilePath);
+          File remoteFile = new File(remoteFilePathString);
           if(remoteFile.exists()){
             System.out.println("OK: Destination file found!");
-            Path remoteTempFile = Paths.get(remoteFilePath);
-            Path tempFile = Paths.get(path);
-            BasicFileAttributes remoteAttr = attrFinder(remoteTempFile);
-            BasicFileAttributes tempAttr = attrFinder(tempFile);
+            Path remoteFilePath = Paths.get(remoteFilePathString);
+            Path localFilePath = Paths.get(localPathString);
+
+            if(timeCheck(localFilePath,remoteFilePath)){
+              System.out.println("Working: replacing!");
+            }
 
           }else{
             System.out.println("Error: Destination file doesnt Exists");
@@ -64,19 +67,58 @@ public class FileSync{
         }catch (Exception e){
           System.out.println(e);
         }
+        System.out.println("-----------------------------------------------------");
       }else if(f.isDirectory()){
         System.out.println("OK: Folder found! - "+f.getName());
-        fileFinder(f.getAbsolutePath(),remoteFilePath);
+        fileFinder(f.getAbsolutePath(),remoteFilePathString);
+        
       }else{
         System.out.println("Error: neither file nor a folder!");
-
+        System.out.println("-----------------------------------------------------");
       }
+
+
     }
+
 
     return;
   }
 
   public static BasicFileAttributes attrFinder(Path p){
-    return Files.readAttributes(p,BasicFileAttributes.class);
+    BasicFileAttributes attr = null;
+    try{
+      attr = Files.readAttributes(p,BasicFileAttributes.class);
+    }catch(Exception e){
+      System.out.println(e);
+    }
+
+    return attr;
   }
+
+  public static boolean timeCheck(Path local, Path remote){
+    try{
+      FileTime localFileTime = Files.getLastModifiedTime(local);
+      FileTime remoteFileTime = Files.getLastModifiedTime(remote);
+
+      System.out.println("Last Modified Time: "+localFileTime.toString());
+      System.out.println("Last Modified Time: "+remoteFileTime.toString());
+
+      if(localFileTime.compareTo(remoteFileTime)>0){
+        System.out.println("File need to be replaced!");
+        return true;
+      }else{
+        System.out.println("Remote file doesnt need to be replaced!");
+        return false;
+      }
+    }catch(Exception e){
+      System.out.println(e);
+      return false;
+    }
+  }
+
+
+
+
+
+
 }
