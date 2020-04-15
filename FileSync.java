@@ -1,11 +1,14 @@
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.nio.file.attribute.FileTime;
+import java.io.*;
+import java.nio.file.*;
+import java.nio.file.attribute.*;
+import java.security.*;
+// import java.nio.file.Paths;
+// import java.nio.file.Path;
+// import java.nio.file.attribute.BasicFileAttributes;
+// import java.nio.file.attribute.FileTime;
+// import java.util.ArrayList;
+// import java.security.DigestInputStream;
 
 public class FileSync{
 
@@ -50,15 +53,25 @@ public class FileSync{
 
       if(f.isFile()){
         try{
-          System.out.println("OK: File found!");
+          long fileSize = f.length();
+          System.out.println("OK: File found! size: "+fileSize);
           File remoteFile = new File(remoteFilePathString);
           if(remoteFile.exists()){
             System.out.println("OK: Destination file found!");
             Path remoteFilePath = Paths.get(remoteFilePathString);
             Path localFilePath = Paths.get(localPathString);
 
-            if(timeCheck(localFilePath,remoteFilePath)){
-              System.out.println("Working: replacing!");
+            if(timeCheck(localFilePath,remoteFilePath)>0){
+              BasicFileAttributes remoteFileAttr = attrFinder(remoteFilePath);
+              BasicFileAttributes localFileAttr = attrFinder(localFilePath);
+              System.out.println("Working: Time Check!");
+              if(checkSum(localPathString,remoteFilePathString)){
+                System.out.println("Working: Md5 Checksum success! No need to replace!");
+              }else{
+                System.out.println("Working: Md5 Checksum failed! NEED to be replaced!");
+
+              }
+
             }
 
           }else{
@@ -71,7 +84,7 @@ public class FileSync{
       }else if(f.isDirectory()){
         System.out.println("OK: Folder found! - "+f.getName());
         fileFinder(f.getAbsolutePath(),remoteFilePathString);
-        
+
       }else{
         System.out.println("Error: neither file nor a folder!");
         System.out.println("-----------------------------------------------------");
@@ -91,11 +104,10 @@ public class FileSync{
     }catch(Exception e){
       System.out.println(e);
     }
-
     return attr;
   }
 
-  public static boolean timeCheck(Path local, Path remote){
+  public static int timeCheck(Path local, Path remote){
     try{
       FileTime localFileTime = Files.getLastModifiedTime(local);
       FileTime remoteFileTime = Files.getLastModifiedTime(remote);
@@ -104,20 +116,66 @@ public class FileSync{
       System.out.println("Last Modified Time: "+remoteFileTime.toString());
 
       if(localFileTime.compareTo(remoteFileTime)>0){
-        System.out.println("File need to be replaced!");
-        return true;
+        System.out.println("Local file is newer!");
+        return 1;
+      }else if(localFileTime.compareTo(remoteFileTime)<0){
+        System.out.println("Remote file is newer!");
+        return -1;
       }else{
-        System.out.println("Remote file doesnt need to be replaced!");
-        return false;
+        System.out.println("Both same!");
+        return 0;
       }
     }catch(Exception e){
+      System.out.println("Error: Both same!");
       System.out.println(e);
-      return false;
+      return -2;
     }
   }
 
+  public static boolean checkSum(String localPath, String remotePath){
+    try{
+      String local = getMD5Checksum(localPath);
+      String remote = getMD5Checksum(remotePath);
+      if(local.equals(remote)){
+        return true;
+      }else{
+        return false;
+      }
+    }catch(Exception e){
+      e.printStackTrace();
+      return false;
+    }
 
+  }
 
+  public static byte[] createChecksum(String filename) throws Exception {
+      InputStream fis =  new FileInputStream(filename);
+
+      byte[] buffer = new byte[1024];
+      MessageDigest complete = MessageDigest.getInstance("MD5");
+      int numRead;
+
+      do {
+          numRead = fis.read(buffer);
+          if (numRead > 0) {
+              complete.update(buffer, 0, numRead);
+          }
+      } while (numRead != -1);
+
+      fis.close();
+      return complete.digest();
+  }
+
+  public static String getMD5Checksum(String filename) throws Exception {
+    byte[] b = createChecksum(filename);
+    String result = "";
+
+    for (int i=0; i < b.length; i++) {
+        result += Integer.toString( ( b[i] & 0xff ) + 0x100, 16).substring( 1 );
+    }
+    System.out.println(result);
+    return result;
+  }
 
 
 
