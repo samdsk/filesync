@@ -70,9 +70,10 @@ public class FileSync{
 
               if(checkSum(localPathString,remoteFilePathString)){
                 System.out.println("Working: Md5 Checksum success! No need to replace!");
+                continue;
               }else{
                 System.out.println("Working: Md5 Checksum failed! NEED to be replaced!");
-
+                work(localPathString,remoteFilePathString);
               }
 
             }
@@ -97,6 +98,20 @@ public class FileSync{
 
     return;
   }
+
+  public static void work(String l, String r){
+    try{
+      Path local = Paths.get(l), remote = Paths.get(r);
+      if(Files.copy(local,remote,StandardCopyOption.COPY_ATTRIBUTES,StandardCopyOption.REPLACE_EXISTING) != null){
+        System.out.println("Copied with success!");
+      }
+    }catch(Exception e){
+      e.printStackTrace();
+    }
+
+
+  }
+
 
   public static BasicFileAttributes attrFinder(String s){
     BasicFileAttributes attr = null;
@@ -148,7 +163,6 @@ public class FileSync{
       e.printStackTrace();
       return false;
     }
-
   }
 
   public static byte[] createChecksum(String filename) throws Exception {
