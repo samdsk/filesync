@@ -58,13 +58,16 @@ public class FileSync{
           File remoteFile = new File(remoteFilePathString);
           if(remoteFile.exists()){
             System.out.println("OK: Destination file found!");
-            Path remoteFilePath = Paths.get(remoteFilePathString);
-            Path localFilePath = Paths.get(localPathString);
 
-            if(timeCheck(localFilePath,remoteFilePath)>0){
-              BasicFileAttributes remoteFileAttr = attrFinder(remoteFilePath);
-              BasicFileAttributes localFileAttr = attrFinder(localFilePath);
+            // Path remoteFilePath = Paths.get(remoteFilePathString);
+            // Path localFilePath = Paths.get(localPathString);
+
+            if(timeCheck(localPathString,remoteFilePathString)>0){
+              // BasicFileAttributes remoteFileAttr = attrFinder(remoteFilePath);
+              // BasicFileAttributes localFileAttr = attrFinder(localFilePath);
+
               System.out.println("Working: Time Check!");
+
               if(checkSum(localPathString,remoteFilePathString)){
                 System.out.println("Working: Md5 Checksum success! No need to replace!");
               }else{
@@ -89,17 +92,16 @@ public class FileSync{
         System.out.println("Error: neither file nor a folder!");
         System.out.println("-----------------------------------------------------");
       }
-
-
     }
 
 
     return;
   }
 
-  public static BasicFileAttributes attrFinder(Path p){
+  public static BasicFileAttributes attrFinder(String s){
     BasicFileAttributes attr = null;
     try{
+      Path p = Paths.get(s);
       attr = Files.readAttributes(p,BasicFileAttributes.class);
     }catch(Exception e){
       System.out.println(e);
@@ -107,8 +109,9 @@ public class FileSync{
     return attr;
   }
 
-  public static int timeCheck(Path local, Path remote){
+  public static int timeCheck(String l,String r){
     try{
+      Path local = Paths.get(l), remote = Paths.get(r);
       FileTime localFileTime = Files.getLastModifiedTime(local);
       FileTime remoteFileTime = Files.getLastModifiedTime(remote);
 
@@ -169,11 +172,9 @@ public class FileSync{
   public static String getMD5Checksum(String filename) throws Exception {
     byte[] b = createChecksum(filename);
     String result = "";
-
     for (int i=0; i < b.length; i++) {
         result += Integer.toString( ( b[i] & 0xff ) + 0x100, 16).substring( 1 );
     }
-    System.out.println(result);
     return result;
   }
 
