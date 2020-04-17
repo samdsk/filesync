@@ -1,2 +1,2 @@
-# filesync
-Backup as folder sync
+# FileSync
+Syncs 2 folders
