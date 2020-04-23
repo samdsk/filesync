@@ -5,6 +5,9 @@ import java.nio.file.attribute.*;
 import java.security.*;
 import java.awt.Desktop;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 
 public class FileSync{
 
@@ -26,13 +29,42 @@ public class FileSync{
     //remoteUpdateDeletes(sourcePath,destinationPath);
 
     ArrayList<A> jobs = new ArrayList<>();
-    //ArrayList<A> toDelete = new ArrayList<>();
+    
    
     findCopyJobs(sourcePath,destinationPath,jobs,0);
-    findDeleteJobs(sourcePath,destinationPath,jobs,0);   
+    findDeleteJobs(sourcePath,destinationPath,jobs,0);
 
-    for(A a: jobs){
-      a.printA();
+
+
+    Collections.sort(jobs, (a,b) -> a.indent>b.indent ? 1 : a.indent==b.indent ? 0 : -1);
+
+    printTable(jobs);
+/*
+    Tree tree = new Tree();
+
+    for(A a : jobs){
+      Tree node = tree;
+      for(String segment : a.getA().split("\\\\")){
+        node = node.computeIfAbsent(segment, s -> new Tree());
+      }
+    }
+
+    printMap(tree,0);
+*/
+  }
+
+
+
+
+
+  public static class Tree extends HashMap<String, Tree> {}
+  public static void printMap(Tree t, int i){
+    for(String k : t.keySet()){
+      System.out.println(("-").repeat(i)+k);
+      if(!t.get(k).isEmpty()){
+        printMap(t.get(k),i+1);
+      }
+      
     }
   }
 
@@ -77,16 +109,71 @@ public class FileSync{
       this.job = j;
     }
 
+    public String getNameLocal(){
+      String s = this.local.getName();
+      return sub(s);
+    }
+
+    public String getNameRemote(){
+      String s = this.remote.getName();
+      return sub(s);
+    }
+
+    private String sub(String s){
+      if(s.length()>30){
+        String sub = s.substring(0,17);
+        sub = sub+"...";
+        return sub;
+      }
+      return s;
+    }
+
     public void printA(){
-      if(this.local != null && this.remote != null){
-        System.out.println(this.indent+"-"+this.local.getParentFile().getName()+"->"+this.local.getName()+" <"+this.job+"> "+this.remote.getName());
+      String leftAlignFormat = "| %-30s | %-3s | %-30s |%n";  
+      if(this.local != null && this.remote != null){        
+        System.out.format(leftAlignFormat,("-").repeat(this.indent)+">"+sub(this.local.getParentFile().getName()),"   ",
+          ("-").repeat(this.indent)+">"+sub(this.remote.getParentFile().getName()));
+        System.out.format(leftAlignFormat, this.getNameLocal(),this.job,this.getNameRemote());
+
       }else if(this.local != null && this.remote == null){
-        System.out.println(this.indent+"-"+this.local.getParentFile().getName()+"->"+this.local.getName()+" <"+this.job+"> NULL");
+        System.out.format(leftAlignFormat,("-").repeat(this.indent)+">"+sub(this.local.getParentFile().getName()),"   ","");
+        System.out.format(leftAlignFormat, this.getNameLocal(),this.job,"None");
+
       }else if(this.local == null && this.remote != null){
-        System.out.println(this.indent+"-"+this.remote.getParentFile().getName()+"->"+"NULL <"+this.job+"> "+this.remote.getName());
-      }     
+        System.out.format(leftAlignFormat,"","   ",("-").repeat(this.indent)+">"+sub(this.remote.getParentFile().getName()));
+        System.out.format(leftAlignFormat,"None",this.job,this.getNameRemote());
+      }  
+    }
+
+    public String getA(){
+      
+      if(this.local != null && this.remote != null){        
+        return this.local.getPath();
+
+      }else if(this.local != null && this.remote == null){
+        return this.local.getPath();
+
+      }else if(this.local == null && this.remote != null){
+        return this.remote.getPath();
+      }
+      
+      return "";
     }
   }
+
+  public static void printTable(ArrayList<A> jobs){
+    int w = 32;
+    String leftAlignFormat = "| %-30s | %-3s | %-30s |%n";  
+    System.out.format("+"+("-").repeat(w)+"+-----+"+("-").repeat(w)+"+%n");
+    System.out.format(leftAlignFormat,"Local","Job","Remote");
+    System.out.format("+"+("-").repeat(w)+"+-----+"+("-").repeat(w)+"+%n");
+    for(A a: jobs){
+      a.printA();
+      System.out.format("+"+("-").repeat(w)+"+-----+"+("-").repeat(w)+"+%n");
+    }
+    //System.out.format("+"+("-").repeat(w)+"+-----+"+("-").repeat(w)+"+%n");
+  }
+
 
   public static void findCopyJobs(String local,String remote, ArrayList<A> a,int in){
     File localDir = new File(local);
@@ -103,15 +190,20 @@ public class FileSync{
             if(timeCheck(localPathString,remoteFilePathString)>0 || !checkSum(localPathString,remoteFilePathString)){
               System.out.println("replace");
               a.add(new A(l,null,'r',in));
+              copyNewFile(localPathString,remoteFilePathString);
               continue;
             }
             a.add(new A(l,remoteFile,'=',in));
             continue;
           }
           a.add(new A(l,null,'+',in));
+          copyNewFile(localPathString,remoteFilePathString);
           continue;
-        }else if(l.isDirectory()){          
-          printTableLine(l.getName()," ",remoteFile.getName());
+        }else if(l.isDirectory()){
+          if(!remoteFile.exists()){
+            Path newDir = Files.createDirectory(Paths.get(remoteFilePathString));
+            System.out.println("Working: New Dir created: "+newDir.toString());
+          }
           findCopyJobs(l.getAbsolutePath(), remoteFilePathString,a,in+1);
         }
       }catch(Exception e){
@@ -135,23 +227,21 @@ public class FileSync{
         if(r.isFile()){            
           if(!localFile.exists()){              
             a.add(new A(null,r,'-',in));
+            deleteFile(r);
             continue;
           }
         }else if(r.isDirectory()){
-          findDeleteJobs(localFilePathString,r.getAbsolutePath(),a,in+1);
+          if(!localFile.exists()){
+            //System.out.println("Working: Warning: Directory does not exist!");
+            deleteFile(r);
+          }else{
+            findDeleteJobs(localFilePathString,r.getAbsolutePath(),a,in+1);
+          }
         }
       }catch(Exception e){
         e.printStackTrace();
       }
     }
-  }  
-
-  public static void printTableLine(String l,String m,String r){
-    String left = "| "+l;
-    String right = r+" |";
-    String middle = "\t| "+m+" |";
-    System.out.println(left+middle+right);
-    return;
   }
 
   public static void remoteUpdateNewFiles(String sPath, String dPath){
@@ -164,7 +254,7 @@ public class FileSync{
       String subPath = localPathString.substring(sPath.length(),localPathString.length());
       String remoteFilePathString = dPath+subPath;
 
-      System.out.println("Working: File: "+localPathString);
+      //System.out.println("Working: File: "+localPathString);
       //System.out.println("Removed source: "+subPath);
       //System.out.println("Destination remote file: "+remoteFilePathString);
 
@@ -186,11 +276,9 @@ public class FileSync{
         }catch (Exception e){
           e.printStackTrace();
         }
-
-        System.out.println("-----------------------------------------------------");
       }else if(f.isDirectory()){
 
-        System.out.println("OK: Folder found: "+f.getName());
+        //System.out.println("OK: Folder found: "+f.getName());
         try{
           File remoteFile = new File(remoteFilePathString);
 
@@ -252,8 +340,6 @@ public class FileSync{
         }catch(Exception e){
           e.printStackTrace();
         }
-
-
       }else{
         System.out.println("Working: << Error >>: neither file nor a folder!");
 
@@ -313,22 +399,22 @@ public class FileSync{
       FileTime localFileTime = Files.getLastModifiedTime(local);
       FileTime remoteFileTime = Files.getLastModifiedTime(remote);
 
-      System.out.println("Working: Time Check: Last Modified Time: "+localFileTime.toString());
-      System.out.println("Working: Time Check: Last Modified Time: "+remoteFileTime.toString());
+      //System.out.println("Working: Time Check: Last Modified Time: "+localFileTime.toString());
+      //System.out.println("Working: Time Check: Last Modified Time: "+remoteFileTime.toString());
 
       if(localFileTime.compareTo(remoteFileTime)>0){
-        System.out.println("Working: Time Check: Local file is newer!");
+        //System.out.println("Working: Time Check: Local file is newer!");
         return 1;
       }else if(localFileTime.compareTo(remoteFileTime)<0){
-        System.out.println("Working: Time Check: Remote file is newer!");
+        //System.out.println("Working: Time Check: Remote file is newer!");
         return -1;
       }else{
-        System.out.println("Working: Time Check: Both same!");
+        //System.out.println("Working: Time Check: Both same!");
         return 0;
       }
     }catch(Exception e){
-      System.out.println("Working: Time Check: << Error >>");
-      System.out.println(e);
+      //System.out.println("Working: Time Check: << Error >>");
+      //System.out.println(e);
       return -2;
     }
   }
@@ -338,10 +424,10 @@ public class FileSync{
       String local = getMD5Checksum(localPath);
       String remote = getMD5Checksum(remotePath);
       if(local.equals(remote)){
-        System.out.println("Wokring: Checksum: OK!");
+        //System.out.println("Wokring: Checksum: OK!");
         return true;
       }else{
-        System.out.println("Wokring: Checksum: Failed!");
+        //System.out.println("Wokring: Checksum: Failed!");
         return false;
       }
     }catch(Exception e){
@@ -378,3 +464,23 @@ public class FileSync{
   }
 
 }
+
+
+/*
+new Comparator<A>() {
+      public int compare(A a,A b){
+        int i=-1;
+        if(a.local == null && b.local == null){
+          i = a.remote.getPath().compareToIgnoreCase(b.remote.getPath());
+        }else if(a.remote == null && b.remote == null){
+          i = a.local.getPath().compareToIgnoreCase(b.local.getPath());
+        }else if(a.local == null && b.remote == null){
+          i = a.remote.getPath().compareToIgnoreCase(b.local.getPath());
+        }else if(a.remote == null && b.local == null){
+          i = a.local.getPath().compareToIgnoreCase(b.remote.getPath());
+        }
+        return i;
+      }
+    }
+
+*/
